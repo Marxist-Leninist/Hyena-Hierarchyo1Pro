@@ -103,6 +103,7 @@ def train_for_n_epochs(model, dataloader, criterion, optimizer, start_epoch, end
         print(f"  [Epoch {epoch}/{end_epoch}] time={epoch_time:.2f}s | last-batch-loss={last_loss:.4f}")
 
     print(f"Finished epochs {start_epoch+1} to {end_epoch}; final last-batch-loss={last_loss:.4f}")
+    return last_loss
 
 ########################################################################
 # Generation function
@@ -129,7 +130,7 @@ def generate_text(model, seed_text, length, char_to_idx, idx_to_char, vocab, inp
         
         out_chars = []
         for _ in range(length):
-            seed_input = seed_indices.float().unsqueeze(0).to(device)
+            seed_input = seed_indices.float().unsqueeze(0)
             outputs = model(seed_input)
             probs = nn.functional.softmax(outputs[-1], dim=0).cpu().numpy()
             next_idx = np.random.choice(len(probs), p=probs)
@@ -145,10 +146,10 @@ def generate_text(model, seed_text, length, char_to_idx, idx_to_char, vocab, inp
 ########################################################################
 def main():
     ####################################################################
-    # Hard-coded path to the text file add yours here
+    # Hard-coded path to the text file
     ####################################################################
     text_file = (
-        r"C:\Users\Downloads\Hyena-Hierarchyo1Pro-master\Hyena-Hierarchyo1Pro-master\o1Prochatdata.txt"
+        r"C:\Users\Scott\Downloads\Hyena-Hierarchyo1Pro-master\Hyena-Hierarchyo1Pro-master\o1Prochatdata.txt"
     )
 
     ####################################################################
@@ -160,9 +161,6 @@ def main():
     lr = 0.001
     batch_size = 128
     
-    # Doubling schedule for epochs
-    epoch_schedule = [1, 2, 4, 8]  # feel free to extend if needed
-
     ####################################################################
     # Load data & build vocab
     ####################################################################
@@ -191,32 +189,46 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
     ####################################################################
-    # TRAIN using the doubling schedule
+    # TRAIN indefinitely with doubling epochs
     ####################################################################
-    print("==== Starting Doubling-Schedule Training ====")
+    print("==== Starting Indefinite Doubling Training ====")
     start_epoch = 0
-    for end_epoch in epoch_schedule:
-        block_start = time.time()
-        train_for_n_epochs(model, dataloader, criterion, optimizer, start_epoch, end_epoch)
-        block_end = time.time()
+    end_epoch = 1  # We'll double this each loop
 
-        duration = block_end - block_start
-        print(f" -> Block {start_epoch+1} to {end_epoch} took {duration:.2f}s")
+    try:
+        # We'll keep going until the user kills the process (Ctrl + C)
+        while True:
+            block_start = time.time()
+            
+            # Train from (start_epoch+1) to end_epoch
+            last_loss = train_for_n_epochs(
+                model, dataloader, criterion, optimizer,
+                start_epoch, end_epoch
+            )
+            
+            block_end = time.time()
+            duration = block_end - block_start
+            print(f" -> Block {start_epoch+1} to {end_epoch} took {duration:.2f}s")
+            
+            # Generate text after this block
+            seed_text = "The quick brown fox"
+            generated_length = 70
+            generated_output = generate_text(
+                model, seed_text, generated_length,
+                char_to_idx, idx_to_char, vocab_size, input_dim
+            )
+            print(f" => Generated text after {end_epoch} epoch(s):")
+            print(generated_output)
+            print()
+            
+            # Prepare for the next doubling
+            start_epoch = end_epoch
+            end_epoch *= 2  # double the epoch count
+            print("==== Next training block will be from epoch "
+                  f"{start_epoch+1} to {end_epoch} ====\n")
 
-        # After each block of epochs, generate text
-        seed_text = "The quick brown fox"
-        generated_length = 70
-        generated_output = generate_text(
-            model, seed_text, generated_length,
-            char_to_idx, idx_to_char, vocab_size, input_dim
-        )
-        print(f" => Generated text after {end_epoch} epoch(s): {generated_output}\n")
-
-        start_epoch = end_epoch  # move to next doubling
-
-    print("==== All scheduled training complete. ====")
+    except KeyboardInterrupt:
+        print("\nTraining interrupted by user. Exiting gracefully...")
 
 if __name__ == '__main__':
     main()
-message.txt
-9 KB
